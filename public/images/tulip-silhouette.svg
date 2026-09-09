@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <!-- 花头：经典杯形三瓣 -->
+    <path id="head-cup" d="M-30,-12 C-33,-32 -14,-40 -2,-26 L0,-23 L2,-26 C14,-40 33,-32 30,-12 C28,6 14,17 0,21 C-14,17 -28,6 -30,-12 Z"/>
+    <!-- 花头：尖瓣开口形（杯口张开、中锋凹陷） -->
+    <path id="head-open" d="M-30,0 C-32,-18 -24,-32 -12,-36 L0,-18 L12,-36 C24,-32 32,-18 30,0 C26,12 12,19 0,21 C-12,19 -26,12 -30,0 Z"/>
+    <!-- 花头：重瓣圆头形 -->
+    <path id="head-double" d="M-26,-6 C-30,-24 -16,-38 0,-38 C16,-38 30,-24 26,-6 C24,8 12,18 0,20 C-12,18 -24,8 -26,-6 Z"/>
+    <!-- 花头：细长花苞 -->
+    <path id="head-bud" d="M0,-34 C10,-30 14,-18 12,-4 C10,8 6,16 0,19 C-6,16 -10,8 -12,-4 C-14,-18 -10,-30 0,-34 Z"/>
+    <!-- 花茎：直茎 / 弯茎 -->
+    <path id="stem-straight" d="M0,20 C-3,60 3,100 0,150" fill="none" stroke-width="7" stroke-linecap="round"/>
+    <path id="stem-curved" d="M0,20 C8,60 -8,100 2,150" fill="none" stroke-width="7" stroke-linecap="round"/>
+    <!-- 叶片：宽叶左右 / 细长叶 -->
+    <path id="leaf-l" d="M-2,55 C-24,62 -38,95 -34,140 C-14,120 -4,92 -2,55 Z"/>
+    <path id="leaf-r" d="M2,70 C22,80 32,110 28,150 C12,132 4,104 2,70 Z"/>
+    <path id="leaf-thin" d="M0,50 C-14,70 -20,105 -16,145 C-6,118 -2,84 0,50 Z"/>
+    <!-- 单株：经典杯形 -->
+    <g id="tulip">
+      <use href="#stem-straight" fill="none"/>
+      <use href="#leaf-l"/>
+      <use href="#leaf-r"/>
+      <use href="#head-cup"/>
+    </g>
+    <!-- 单株：开口尖瓣 -->
+    <g id="tulip-open">
+      <use href="#stem-straight" fill="none"/>
+      <use href="#leaf-r"/>
+      <use href="#leaf-thin"/>
+      <use href="#head-open"/>
+    </g>
+    <!-- 单株：重瓣圆头（单侧叶） -->
+    <g id="tulip-double">
+      <use href="#stem-straight" fill="none"/>
+      <use href="#leaf-l"/>
+      <use href="#head-double"/>
+    </g>
+    <!-- 单株：花苞（弯茎细叶） -->
+    <g id="tulip-bud">
+      <use href="#stem-curved" fill="none"/>
+      <use href="#leaf-l"/>
+      <use href="#head-bud"/>
+    </g>
+    <!-- 草丛：普通 / 高挑 -->
+    <g id="grass">
+      <path d="M0,0 C-4,-24 -10,-38 -18,-46 C-12,-22 -8,-10 -6,0 Z"/>
+      <path d="M2,0 C2,-30 0,-48 -4,-62 C-8,-40 -6,-18 -4,0 Z"/>
+      <path d="M6,0 C10,-22 16,-36 24,-44 C16,-20 10,-10 8,0 Z"/>
+    </g>
+    <g id="grass-tall">
+      <path d="M0,0 C-6,-34 -14,-56 -26,-70 C-16,-36 -8,-14 -5,0 Z"/>
+      <path d="M3,0 C3,-42 1,-66 -5,-86 C-10,-56 -7,-24 -4,0 Z"/>
+      <path d="M8,0 C14,-30 24,-50 36,-62 C22,-28 12,-12 10,0 Z"/>
+      <path d="M-6,0 C-12,-20 -22,-34 -34,-42 C-22,-18 -12,-8 -8,0 Z"/>
+    </g>
+    <!-- 飘落花瓣 -->
+    <ellipse id="petal" rx="9" ry="5"/>
+  </defs>
+
+  <!-- 远景：淡紫小花田，高低错落、三五成簇 -->
+  <g fill="#6b4a94" stroke="#6b4a94" opacity="0.42">
+    <rect y="596" width="1440" height="26" opacity="0.35"/>
+    <use href="#tulip" transform="translate(60 548) scale(0.5)"/>
+    <use href="#tulip-bud" transform="translate(128 572) scale(0.44)"/>
+    <use href="#tulip-open" transform="translate(172 556) scale(0.52)"/>
+    <use href="#tulip" transform="translate(305 585) scale(0.6)"/>
+    <use href="#tulip-double" transform="translate(388 552) scale(0.44)"/>
+    <use href="#tulip" transform="translate(522 565) scale(0.56)"/>
+    <use href="#tulip-bud" transform="translate(612 590) scale(0.48)"/>
+    <use href="#tulip-open" transform="translate(658 545) scale(0.42)"/>
+    <use href="#tulip" transform="translate(792 575) scale(0.6)"/>
+    <use href="#tulip-double" transform="translate(905 558) scale(0.46)"/>
+    <use href="#tulip-open" transform="translate(1008 582) scale(0.54)"/>
+    <use href="#tulip" transform="translate(1062 548) scale(0.42)"/>
+    <use href="#tulip-bud" transform="translate(1192 570) scale(0.58)"/>
+    <use href="#tulip" transform="translate(1332 556) scale(0.47)"/>
+    <use href="#tulip-open" transform="translate(1408 588) scale(0.54)"/>
+    <use href="#grass" transform="translate(245 598) scale(0.9)"/>
+    <use href="#grass" transform="translate(868 600) scale(0.8)"/>
+    <use href="#grass-tall" transform="translate(1262 598) scale(0.75)"/>
+  </g>
+
+  <!-- 中景：中紫郁金香，花型混合、弯直相间 -->
+  <g fill="#543872" stroke="#543872" opacity="0.68">
+    <use href="#tulip" transform="translate(30 668) scale(0.88)"/>
+    <use href="#tulip-bud" transform="translate(145 688) scale(0.72)"/>
+    <use href="#tulip-open" transform="translate(265 652) scale(0.98)"/>
+    <use href="#tulip" transform="translate(382 682) scale(0.76)"/>
+    <use href="#tulip-double" transform="translate(472 644) scale(0.92)"/>
+    <use href="#tulip" transform="translate(602 690) scale(0.74)"/>
+    <use href="#tulip-open" transform="translate(702 660) scale(1.02)"/>
+    <use href="#tulip-bud" transform="translate(832 686) scale(0.8)"/>
+    <use href="#tulip" transform="translate(952 648) scale(0.96)"/>
+    <use href="#tulip-double" transform="translate(1082 688) scale(0.75)"/>
+    <use href="#tulip-open" transform="translate(1212 656) scale(0.94)"/>
+    <use href="#tulip" transform="translate(1352 680) scale(0.86)"/>
+    <use href="#tulip-bud" transform="translate(1437 668) scale(0.7)"/>
+    <use href="#grass" transform="translate(95 702) scale(1.3)"/>
+    <use href="#grass-tall" transform="translate(322 706) scale(1.0)"/>
+    <use href="#grass" transform="translate(548 704) scale(1.45)"/>
+    <use href="#grass" transform="translate(772 700) scale(1.15)"/>
+    <use href="#grass-tall" transform="translate(1018 706) scale(1.05)"/>
+    <use href="#grass" transform="translate(1282 702) scale(1.35)"/>
+  </g>
+
+  <!-- 空中飘落花瓣：增添灵动 -->
+  <use href="#petal" fill="#6b4a94" opacity="0.4" transform="translate(405 432) rotate(-24)"/>
+  <use href="#petal" fill="#6b4a94" opacity="0.32" transform="translate(1102 478) rotate(18)"/>
+  <use href="#petal" fill="#543872" opacity="0.5" transform="translate(252 468) rotate(40)"/>
+  <use href="#petal" fill="#543872" opacity="0.45" transform="translate(902 412) rotate(-38)"/>
+
+  <!-- 近景：深紫大郁金香，簇生与独株相间 -->
+  <g fill="#33204c" stroke="#33204c">
+    <rect y="742" width="1440" height="58"/>
+    <use href="#tulip" transform="translate(90 768) scale(1.35)"/>
+    <use href="#tulip-bud" transform="translate(242 782) scale(1.15)"/>
+    <use href="#tulip-open" transform="translate(352 756) scale(1.55)"/>
+    <use href="#tulip-double" transform="translate(482 780) scale(1.22)"/>
+    <use href="#tulip" transform="translate(592 775) scale(1.18)"/>
+    <use href="#tulip-open" transform="translate(648 762) scale(1.45)"/>
+    <use href="#tulip" transform="translate(752 772) scale(1.3)"/>
+    <use href="#tulip-double" transform="translate(892 754) scale(1.6)"/>
+    <use href="#tulip-bud" transform="translate(1042 784) scale(1.2)"/>
+    <use href="#tulip-open" transform="translate(1172 760) scale(1.42)"/>
+    <use href="#tulip" transform="translate(1302 766) scale(1.5)"/>
+    <use href="#tulip-bud" transform="translate(1422 780) scale(1.24)"/>
+    <use href="#grass-tall" transform="translate(162 772) scale(2.2)"/>
+    <use href="#grass" transform="translate(548 778) scale(2.0)"/>
+    <use href="#grass-tall" transform="translate(962 772) scale(2.3)"/>
+    <use href="#grass" transform="translate(1252 778) scale(2.1)"/>
+  </g>
+</svg>

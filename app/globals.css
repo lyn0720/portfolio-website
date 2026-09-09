@@ -1,0 +1,278 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ===== Palette CSS variables (RGB triplets) =====
+     Default = jungle green (original template). `.theme-violet` = violet from the pixel avatar. */
+
+  :root {
+    /* Jungle green palette */
+    --jungle-50: 247 250 240;
+    --jungle-100: 235 242 217;
+    --jungle-200: 215 230 176;
+    --jungle-300: 190 215 119;
+    --jungle-400: 170 206 72;
+    --jungle-500: 144 180 45;
+    --jungle-600: 100 125 33;
+    --jungle-700: 84 105 28;
+    --jungle-800: 65 81 21;
+    --jungle-900: 49 60 16;
+    --jungle-950: 31 38 10;
+
+    /* Warm honey palette */
+    --honey-50: 249 246 241;
+    --honey-100: 243 237 226;
+    --honey-200: 231 219 197;
+    --honey-300: 214 192 154;
+    --honey-400: 199 169 117;
+    --honey-500: 181 142 74;
+    --honey-600: 145 113 59;
+    --honey-700: 112 88 46;
+    --honey-800: 86 68 37;
+    --honey-900: 63 51 28;
+    --honey-950: 35 28 16;
+
+    /* Hero gradient & scrollbar */
+    --grad-from: 31 38 10;
+    --grad-mid: 49 60 16;
+    --grad-to: 65 81 21;
+    --scroll-track: 31 38 10;
+    --scroll-thumb: 84 105 28;
+    --scroll-thumb-hover: 144 180 45;
+
+    /* White background + dark brown text, green-honey accents */
+    --background: 0 0% 100%;
+    --foreground: 30 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 30 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 25% 15%;
+
+    --primary: 76 46% 32%;
+    --primary-foreground: 40 30% 98%;
+
+    --secondary: 38 42% 92%;
+    --secondary-foreground: 38 42% 31%;
+
+    --muted: 40 22% 94%;
+    --muted-foreground: 30 12% 38%;
+
+    --accent: 38 42% 92%;
+    --accent-foreground: 38 42% 31%;
+
+    --destructive: 0 45% 45%;
+    --destructive-foreground: 40 30% 98%;
+
+    --border: 40 18% 87%;
+    --input: 40 18% 87%;
+    --ring: 76 46% 32%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Jungle green, night */
+    --grad-from: 31 38 10;
+    --grad-mid: 49 60 16;
+    --grad-to: 65 81 21;
+    --scroll-track: 31 38 10;
+    --scroll-thumb: 84 105 28;
+    --scroll-thumb-hover: 144 180 45;
+
+    /* Neutral dark background (original template), purple accents kept */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 38 28% 22%;
+    --secondary-foreground: 38 40% 86%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 38 28% 24%;
+    --accent-foreground: 38 40% 86%;
+
+    --destructive: 0 40% 55%;
+    --destructive-foreground: 40 30% 96%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+
+  /* ===== Violet avatar theme ===== */
+  .theme-violet {
+    /* Violet purple palette (window frame / ribbon purple) */
+    --jungle-50: 249 246 253;
+    --jungle-100: 241 234 250;
+    --jungle-200: 226 212 244;
+    --jungle-300: 205 180 236;
+    --jungle-400: 184 145 226;
+    --jungle-500: 160 111 212;
+    --jungle-600: 125 79 176;
+    --jungle-700: 104 64 148;
+    --jungle-800: 82 50 119;
+    --jungle-900: 60 36 89;
+    --jungle-950: 39 22 64;
+
+    /* Soft pink-purple palette (candy-pink grid background) */
+    --honey-50: 253 245 250;
+    --honey-100: 250 233 243;
+    --honey-200: 244 209 232;
+    --honey-300: 236 176 216;
+    --honey-400: 223 137 197;
+    --honey-500: 205 102 174;
+    --honey-600: 171 79 144;
+    --honey-700: 137 62 115;
+    --honey-800: 106 47 89;
+    --honey-900: 77 34 65;
+    --honey-950: 46 20 39;
+
+    /* Hero gradient & scrollbar */
+    --grad-from: 39 22 64;
+    --grad-mid: 60 36 89;
+    --grad-to: 82 50 119;
+    --scroll-track: 39 22 64;
+    --scroll-thumb: 104 64 148;
+    --scroll-thumb-hover: 160 111 212;
+
+    /* White background + deep purple text, violet-pink accents */
+    --background: 0 0% 100%;
+    --foreground: 280 22% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 280 22% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 280 22% 16%;
+
+    --primary: 268 38% 50%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 315 40% 93%;
+    --secondary-foreground: 315 30% 35%;
+
+    --muted: 315 25% 94%;
+    --muted-foreground: 300 10% 40%;
+
+    --accent: 315 40% 93%;
+    --accent-foreground: 315 30% 35%;
+
+    --destructive: 0 45% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 300 18% 88%;
+    --input: 300 18% 88%;
+    --ring: 268 38% 50%;
+  }
+
+  .theme-violet.dark {
+    /* Deep purple-black background, pink-purple accents */
+    --background: 265 40% 5%;
+    --foreground: 280 30% 96%;
+
+    --card: 265 35% 7%;
+    --card-foreground: 280 30% 96%;
+
+    --popover: 265 35% 7%;
+    --popover-foreground: 280 30% 96%;
+
+    --primary: 270 70% 90%;
+    --primary-foreground: 265 40% 10%;
+
+    --secondary: 300 25% 22%;
+    --secondary-foreground: 315 45% 86%;
+
+    --muted: 266 25% 14%;
+    --muted-foreground: 270 15% 68%;
+
+    --accent: 300 25% 24%;
+    --accent-foreground: 315 45% 86%;
+
+    --destructive: 0 40% 55%;
+    --destructive-foreground: 0 0% 96%;
+
+    --border: 268 25% 16%;
+    --input: 268 25% 16%;
+    --ring: 270 60% 80%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.bg-jungle-gradient {
+  background: linear-gradient(to bottom, rgb(var(--grad-from)), rgb(var(--grad-mid)), rgb(var(--grad-to)));
+}
+
+/* Custom scrollbar follows the active color theme */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--scroll-track));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--scroll-thumb));
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scroll-thumb-hover));
+}
+
+/* Smooth color transition when switching the color theme */
+body,
+header {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Vine decorations: keep the violet SVG, rotate hue to green in the green theme */
+.theme-green .vine-stroke {
+  filter: hue-rotate(172deg);
+}
+
+/* Hero flora layers: strictly one set per color theme, no cross-bleeding */
+.flower-layer-lily,
+.flower-layer-leaf,
+.flower-layer-pansy {
+  display: none;
+}
+
+.theme-violet .flower-layer-lily,
+.theme-violet .flower-layer-pansy {
+  display: block;
+}
+
+.theme-green .flower-layer-leaf {
+  display: block;
+}
+
+/* Hero silhouette background: jungle (green theme) / tulip garden (violet theme) */
+.silhouette-bg {
+  background-image: url("/images/django-jungle.png");
+}
+
+.theme-violet .silhouette-bg {
+  background-image: url("/images/tulip-silhouette.svg");
+}
