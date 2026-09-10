@@ -1,12 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+// 博客云端数据层：文章 / 分类 / 媒体全部走 API，多组件共享一份缓存
+import { useEffect, useSyncExternalStore } from "react"
+import { upload } from "@vercel/blob/client"
 import {
   compressImage,
-  dbRemoveMedia,
-  getAllMedia,
-  getMedia,
-  persistMedia,
   prepareVideo,
   validateFile,
   type MediaItem,
@@ -22,10 +20,6 @@ export interface UserPost {
   videoId?: string
 }
 
-const CATEGORIES_KEY = "zezhe_categories"
-const POSTS_KEY = "zezhe_posts"
-const CATEGORY_IMAGES_KEY = "zezhe_category_images"
-
 /** 校验分类名称：非空、长度、与现有分类不重复（忽略大小写） */
 export function validateCategoryName(name: string, existing: string[]): string | null {
   const trimmed = name.trim()
@@ -35,220 +29,299 @@ export function validateCategoryName(name: string, existing: string[]): string |
   return null
 }
 
-// 媒体对象 URL 缓存（模块级，同 id 复用）
-const urlCache = new Map<string, string>()
+// ---------------- 共享状态 ----------------
 
-/** 解析媒体 id 为可在 <img>/<video> 中使用的对象 URL */
+interface StoreState {
+  categories: string[]
+  posts: UserPost[]
+  mediaItems: MediaItem[]
+  categoryImages: Record<string, string>
+  ready: boolean
+  failed: boolean
+}
+
+const initialState: StoreState = {
+  categories: [],
+  posts: [],
+  mediaItems: [],
+  categoryImages: {},
+  ready: false,
+  failed: false,
+}
+
+let state: StoreState = initialState
+const listeners = new Set<() => void>()
+
+function setState(patch: Partial<StoreState>) {
+  state = { ...state, ...patch }
+  listeners.forEach((l) => l())
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+function getSnapshot() {
+  return state
+}
+
+function getServerSnapshot() {
+  return initialState
+}
+
+// ---------------- 请求工具 ----------------
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error((data as { error?: string }).error || `请求失败 (${res.status})`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+  return data as T
+}
+
+function errorMessage(err: unknown): string {
+  const status = (err as { status?: number })?.status
+  if (status === 401) return "登录已过期，请重新登录"
+  return err instanceof Error && err.message ? err.message : "操作失败，请重试"
+}
+
+function genId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+// ---------------- 首次加载（单例） ----------------
+
+let loadPromise: Promise<void> | null = null
+
+function load(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        const [postsRes, catsRes, mediaRes] = await Promise.all([
+          fetchJson<{ posts: UserPost[] }>("/api/posts"),
+          fetchJson<{ categories: { name: string; imageId: string | null }[] }>("/api/categories"),
+          fetchJson<{ media: MediaItem[] }>("/api/media"),
+        ])
+        const cats = catsRes.categories ?? []
+        setState({
+          posts: postsRes.posts ?? [],
+          categories: cats.map((c) => c.name),
+          categoryImages: Object.fromEntries(
+            cats.filter((c) => c.imageId).map((c) => [c.name, c.imageId as string]),
+          ),
+          mediaItems: mediaRes.media ?? [],
+          ready: true,
+          failed: false,
+        })
+      } catch (err) {
+        console.error("博客数据加载失败", err)
+        setState({ ready: true, failed: true })
+      }
+    })()
+  }
+  return loadPromise
+}
+
+// ---------------- Hooks ----------------
+
+/** 解析媒体 id 为可直接用于 <img>/<video> 的云端 URL */
 export function useMediaUrl(id?: string | null) {
-  const [url, setUrl] = useState<string | null>(() => (id ? urlCache.get(id) ?? null : null))
-  useEffect(() => {
-    let active = true
-    if (!id) {
-      setUrl(null)
-      return
-    }
-    const cached = urlCache.get(id)
-    if (cached) {
-      setUrl(cached)
-      return
-    }
-    getMedia(id).then((item) => {
-      if (!active || !item) return
-      const objectUrl = URL.createObjectURL(item.blob)
-      urlCache.set(id, objectUrl)
-      setUrl(objectUrl)
-    })
-    return () => {
-      active = false
-    }
-  }, [id])
-  return url
+  const { mediaItems } = useCategories()
+  const item = id ? mediaItems.find((m) => m.id === id) : undefined
+  return item?.url ?? null
 }
 
 export function useCategories() {
-  const [categories, setCategories] = useState<string[]>([])
-  const [posts, setPosts] = useState<UserPost[]>([])
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({})
-  const [ready, setReady] = useState(false)
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
   useEffect(() => {
+    load()
+  }, [])
+
+  // ----- 分类 -----
+
+  const addCategory = async (name: string): Promise<string | null> => {
+    const error = validateCategoryName(name, state.categories)
+    if (error) return error
+    const trimmed = name.trim()
     try {
-      const rawCats = localStorage.getItem(CATEGORIES_KEY)
-      if (rawCats) {
-        const parsed = JSON.parse(rawCats)
-        if (Array.isArray(parsed)) setCategories(parsed.filter((c) => typeof c === "string"))
-      }
-      const rawPosts = localStorage.getItem(POSTS_KEY)
-      if (rawPosts) {
-        const parsed = JSON.parse(rawPosts)
-        if (Array.isArray(parsed)) setPosts(parsed as UserPost[])
-      }
-      const rawImages = localStorage.getItem(CATEGORY_IMAGES_KEY)
-      if (rawImages) {
-        const parsed = JSON.parse(rawImages)
-        if (parsed && typeof parsed === "object") setCategoryImages(parsed)
-      }
-    } catch {
-      // 数据损坏时按空数据处理，不抛错
+      await fetchJson("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      })
+      setState({ categories: [...state.categories, trimmed] })
+      return null
+    } catch (err) {
+      return errorMessage(err)
     }
-    getAllMedia()
-      .then((items) => setMediaItems(items.sort((a, b) => b.createdAt - a.createdAt)))
-      .catch(() => {})
-    setReady(true)
-  }, [])
+  }
 
-  const persistCategories = useCallback((next: string[]) => {
-    setCategories(next)
-    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(next))
-  }, [])
-
-  const persistCategoryImages = useCallback((next: Record<string, string>) => {
-    setCategoryImages(next)
-    localStorage.setItem(CATEGORY_IMAGES_KEY, JSON.stringify(next))
-  }, [])
-
-  const addCategory = useCallback(
-    (name: string): string | null => {
-      const error = validateCategoryName(name, categories)
-      if (error) return error
-      persistCategories([...categories, name.trim()])
-      return null
-    },
-    [categories, persistCategories],
-  )
-
-  const renameCategory = useCallback(
-    (oldName: string, newName: string): string | null => {
-      const others = categories.filter((c) => c !== oldName)
-      const error = validateCategoryName(newName, others)
-      if (error) return error
-      const trimmed = newName.trim()
-      persistCategories(categories.map((c) => (c === oldName ? trimmed : c)))
-      // 同步更新引用了该分类的已发布文章与配图
-      setPosts((prev) => {
-        const next = prev.map((p) => (p.category === oldName ? { ...p, category: trimmed } : p))
-        localStorage.setItem(POSTS_KEY, JSON.stringify(next))
-        return next
+  const renameCategory = async (oldName: string, newName: string): Promise<string | null> => {
+    const others = state.categories.filter((c) => c !== oldName)
+    const error = validateCategoryName(newName, others)
+    if (error) return error
+    const trimmed = newName.trim()
+    try {
+      await fetchJson(`/api/categories/${encodeURIComponent(oldName)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
       })
-      if (categoryImages[oldName] !== undefined) {
-        const nextImages = { ...categoryImages }
-        nextImages[trimmed] = nextImages[oldName]
-        if (trimmed !== oldName) delete nextImages[oldName]
-        persistCategoryImages(nextImages)
-      }
-      return null
-    },
-    [categories, categoryImages, persistCategories, persistCategoryImages],
-  )
-
-  const deleteCategory = useCallback(
-    (name: string) => {
-      persistCategories(categories.filter((c) => c !== name))
-      if (categoryImages[name] !== undefined) {
-        const nextImages = { ...categoryImages }
-        delete nextImages[name]
-        persistCategoryImages(nextImages)
-      }
-    },
-    [categories, categoryImages, persistCategories, persistCategoryImages],
-  )
-
-  const setCategoryImage = useCallback(
-    (name: string, mediaId: string | null) => {
-      const nextImages = { ...categoryImages }
-      if (mediaId) {
-        nextImages[name] = mediaId
-      } else {
-        delete nextImages[name]
-      }
-      persistCategoryImages(nextImages)
-    },
-    [categoryImages, persistCategoryImages],
-  )
-
-  const addPost = useCallback(
-    (title: string, content: string, category: string, coverId?: string, videoId?: string) => {
-      const post: UserPost = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: title.trim(),
-        content: content.trim(),
-        category,
-        date: new Date().toISOString().slice(0, 10),
-        ...(coverId ? { coverId } : {}),
-        ...(videoId ? { videoId } : {}),
-      }
-      setPosts((prev) => {
-        const next = [post, ...prev]
-        localStorage.setItem(POSTS_KEY, JSON.stringify(next))
-        return next
+      setState({
+        categories: state.categories.map((c) => (c === oldName ? trimmed : c)),
+        posts: state.posts.map((p) => (p.category === oldName ? { ...p, category: trimmed } : p)),
+        categoryImages:
+          state.categoryImages[oldName] !== undefined
+            ? Object.fromEntries(
+                Object.entries(state.categoryImages).map(([k, v]) => (k === oldName ? [trimmed, v] : [k, v])),
+              )
+            : state.categoryImages,
       })
-    },
-    [],
-  )
+      return null
+    } catch (err) {
+      return errorMessage(err)
+    }
+  }
 
-  const deletePost = useCallback((id: string) => {
-    setPosts((prev) => {
-      const next = prev.filter((p) => p.id !== id)
-      localStorage.setItem(POSTS_KEY, JSON.stringify(next))
-      return next
-    })
-  }, [])
+  const deleteCategory = async (name: string): Promise<void> => {
+    try {
+      await fetchJson(`/api/categories/${encodeURIComponent(name)}`, { method: "DELETE" })
+      const nextImages = { ...state.categoryImages }
+      delete nextImages[name]
+      setState({
+        categories: state.categories.filter((c) => c !== name),
+        categoryImages: nextImages,
+      })
+    } catch (err) {
+      console.error("删除分类失败", err)
+    }
+  }
 
-  const postCountByCategory = useCallback(
-    (name: string) => posts.filter((p) => p.category === name).length,
-    [posts],
-  )
+  const setCategoryImage = async (name: string, mediaId: string | null): Promise<void> => {
+    try {
+      await fetchJson(`/api/categories/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId: mediaId }),
+      })
+      const nextImages = { ...state.categoryImages }
+      if (mediaId) nextImages[name] = mediaId
+      else delete nextImages[name]
+      setState({ categoryImages: nextImages })
+    } catch (err) {
+      console.error("设置分类配图失败", err)
+    }
+  }
 
-  /** 上传媒体：校验 → 压缩/抽帧 → 入库，onProgress 汇报进度(0-100)与阶段文案 */
-  const addMedia = useCallback(
-    async (
-      file: File,
-      onProgress?: (progress: number, text: string) => void,
-    ): Promise<{ ok: true; item: MediaItem } | { ok: false; error: string }> => {
-      try {
-        onProgress?.(10, "校验文件…")
-        const check = await validateFile(file)
-        if (!check.ok) return { ok: false, error: check.error }
-        onProgress?.(35, check.kind === "image" ? "正在压缩图片…" : "正在生成视频预览…")
-        const prepared =
-          check.kind === "image" ? await compressImage(file) : await prepareVideo(file)
-        onProgress?.(75, "保存到本地媒体库…")
-        const item = await persistMedia({
+  // ----- 文章 -----
+
+  const addPost = async (
+    title: string,
+    content: string,
+    category: string,
+    coverId?: string,
+    videoId?: string,
+  ): Promise<string | null> => {
+    const post: UserPost = {
+      id: genId(),
+      title: title.trim(),
+      content: content.trim(),
+      category,
+      date: today(),
+      ...(coverId ? { coverId } : {}),
+      ...(videoId ? { videoId } : {}),
+    }
+    try {
+      await fetchJson("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(post),
+      })
+      setState({ posts: [post, ...state.posts] })
+      return null
+    } catch (err) {
+      return errorMessage(err)
+    }
+  }
+
+  const deletePost = async (id: string): Promise<void> => {
+    try {
+      await fetchJson(`/api/posts/${encodeURIComponent(id)}`, { method: "DELETE" })
+      setState({ posts: state.posts.filter((p) => p.id !== id) })
+    } catch (err) {
+      console.error("删除文章失败", err)
+    }
+  }
+
+  const postCountByCategory = (name: string) => state.posts.filter((p) => p.category === name).length
+
+  // ----- 媒体 -----
+
+  /** 校验 → 压缩/抽帧 → 客户端直传 Blob → 登记入库，onProgress 汇报进度(0-100)与阶段文案 */
+  const addMedia = async (
+    file: File,
+    onProgress?: (progress: number, text: string) => void,
+  ): Promise<{ ok: true; item: MediaItem } | { ok: false; error: string }> => {
+    try {
+      onProgress?.(8, "校验文件…")
+      const check = await validateFile(file)
+      if (!check.ok) return { ok: false, error: check.error }
+      onProgress?.(25, check.kind === "image" ? "正在压缩图片…" : "正在生成视频预览…")
+      const prepared =
+        check.kind === "image" ? await compressImage(file) : await prepareVideo(file)
+      onProgress?.(55, "上传到云端…")
+      const id = genId()
+      const safeName = file.name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, "_") || "file"
+      const blob = await upload(`media/${id}/${safeName}`, prepared.blob, {
+        access: "public",
+        handleUploadUrl: "/api/media/upload",
+      })
+      onProgress?.(90, "保存媒体信息…")
+      const data = await fetchJson<{ media: MediaItem }>("/api/media/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          url: blob.url,
           name: file.name,
           kind: check.kind,
-          blob: prepared.blob,
           mime: prepared.mime,
+          size: prepared.blob.size,
           width: prepared.width,
           height: prepared.height,
           thumb: prepared.thumb,
-        })
-        setMediaItems((prev) => [item, ...prev])
-        onProgress?.(100, "上传完成")
-        return { ok: true, item }
-      } catch {
-        return { ok: false, error: "文件处理失败，请重试" }
-      }
-    },
-    [],
-  )
-
-  const removeMediaItem = useCallback((id: string) => {
-    dbRemoveMedia(id).catch(() => {})
-    const cached = urlCache.get(id)
-    if (cached) {
-      URL.revokeObjectURL(cached)
-      urlCache.delete(id)
+        }),
+      })
+      setState({ mediaItems: [data.media, ...state.mediaItems] })
+      onProgress?.(100, "上传完成")
+      return { ok: true, item: data.media }
+    } catch (err) {
+      return { ok: false, error: errorMessage(err) }
     }
-    setMediaItems((prev) => prev.filter((m) => m.id !== id))
-  }, [])
+  }
+
+  const removeMediaItem = async (id: string): Promise<void> => {
+    try {
+      await fetchJson(`/api/media/${encodeURIComponent(id)}`, { method: "DELETE" })
+      setState({ mediaItems: state.mediaItems.filter((m) => m.id !== id) })
+    } catch (err) {
+      console.error("删除媒体失败", err)
+    }
+  }
 
   return {
-    categories,
-    posts,
-    mediaItems,
-    categoryImages,
-    ready,
+    ...snapshot,
     addCategory,
     renameCategory,
     deleteCategory,

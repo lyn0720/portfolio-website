@@ -1,4 +1,5 @@
-// 媒体库：IndexedDB 存储、文件校验（扩展名 + MIME + 魔数）、图片压缩、视频抽帧
+// 媒体处理：文件校验（扩展名 + MIME + 魔数）、图片压缩、视频抽帧
+// 实际文件存储在 Vercel Blob，数据库只记录元信息
 export interface MediaItem {
   id: string
   name: string
@@ -7,60 +8,17 @@ export interface MediaItem {
   size: number
   width?: number
   height?: number
+  url: string
   thumb: string
-  blob: Blob
   createdAt: number
 }
 
-// 大小不设人为限制，实际容量由浏览器 IndexedDB 存储配额管理
+// 大小不设人为限制：走 Blob 客户端直传，不受接口请求体限制
 
 const IMAGE_EXT = ["jpg", "jpeg", "png", "webp", "gif"]
 const VIDEO_EXT = ["mp4", "webm", "mov"]
 const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 const VIDEO_MIMES = ["video/mp4", "video/webm", "video/quicktime"]
-
-const DB_NAME = "zezhe_media"
-const STORE = "media"
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1)
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE, { keyPath: "id" })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest): Promise<T> {
-  const db = await openDB()
-  return new Promise<T>((resolve, reject) => {
-    const t = db.transaction(STORE, mode)
-    const req = run(t.objectStore(STORE))
-    req.onsuccess = () => resolve(req.result as T)
-    req.onerror = () => reject(req.error)
-    t.oncomplete = () => db.close()
-  })
-}
-
-export function getMedia(id: string): Promise<MediaItem | undefined> {
-  return tx<MediaItem | undefined>("readonly", (s) => s.get(id))
-}
-
-export function getAllMedia(): Promise<MediaItem[]> {
-  return tx<MediaItem[]>("readonly", (s) => s.getAll())
-}
-
-export function dbSaveMedia(item: MediaItem): Promise<void> {
-  return tx<void>("readwrite", (s) => s.put(item))
-}
-
-export function dbRemoveMedia(id: string): Promise<void> {
-  return tx<void>("readwrite", (s) => s.delete(id))
-}
 
 /** 通过文件头魔数识别真实类型，防止伪造扩展名 */
 function sniffKind(bytes: Uint8Array): "image" | "video" | null {
@@ -139,7 +97,7 @@ export async function compressImage(file: File): Promise<{
   }
 }
 
-/** 视频处理：生成抽帧缩略图，视频原样存储（浏览器端转码不现实，需后端） */
+/** 视频处理：生成抽帧缩略图，视频原样上传（浏览器端转码不现实） */
 export async function prepareVideo(file: File): Promise<{
   blob: Blob
   mime: string
@@ -168,29 +126,4 @@ export async function prepareVideo(file: File): Promise<{
   } finally {
     URL.revokeObjectURL(url)
   }
-}
-
-export async function persistMedia(params: {
-  name: string
-  kind: "image" | "video"
-  blob: Blob
-  mime: string
-  width?: number
-  height?: number
-  thumb: string
-}): Promise<MediaItem> {
-  const item: MediaItem = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: params.name,
-    kind: params.kind,
-    mime: params.mime,
-    size: params.blob.size,
-    width: params.width,
-    height: params.height,
-    thumb: params.thumb,
-    blob: params.blob,
-    createdAt: Date.now(),
-  }
-  await dbSaveMedia(item)
-  return item
 }

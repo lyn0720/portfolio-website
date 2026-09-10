@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Tags, Tag, Plus, Pencil, Trash2 } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
+import { useAdmin } from "@/hooks/use-admin"
 import MediaPicker, { MediaImage } from "@/components/media-picker"
 
 export default function CategoryTags() {
@@ -30,6 +31,7 @@ export default function CategoryTags() {
     categoryImages,
     setCategoryImage,
   } = useCategories()
+  const { isAdmin } = useAdmin()
   const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState("")
   const [newCatImage, setNewCatImage] = useState<string | null>(null)
@@ -39,13 +41,13 @@ export default function CategoryTags() {
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  const handleCreate = () => {
-    const err = addCategory(newName)
+  const handleCreate = async () => {
+    const err = await addCategory(newName)
     if (err) {
       setError(err)
       return
     }
-    setCategoryImage(newName.trim(), newCatImage)
+    await setCategoryImage(newName.trim(), newCatImage)
     setNewName("")
     setNewCatImage(null)
     setShowForm(false)
@@ -58,9 +60,9 @@ export default function CategoryTags() {
     setEditError(null)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editing === null) return
-    const err = renameCategory(editing, editName)
+    const err = await renameCategory(editing, editName)
     if (err) {
       setEditError(err)
       return
@@ -144,12 +146,13 @@ export default function CategoryTags() {
             分类与标签
           </h2>
           <p className="text-lg text-stone-600 dark:text-stone-300 max-w-2xl mx-auto">
-            在这里创建和管理属于你的文章分类。
+            {isAdmin ? "在这里创建和管理属于你的文章分类。" : "这些是我用来整理文章的分类。"}
           </p>
           <div className="h-1 w-20 bg-jungle-500 mx-auto mt-4"></div>
         </motion.div>
 
         <div className="max-w-3xl mx-auto mb-12">
+          {isAdmin && (
           <div className="flex justify-center mb-8">
             {showForm ? (
               <div className="w-full max-w-md">
@@ -205,6 +208,7 @@ export default function CategoryTags() {
               </Button>
             )}
           </div>
+          )}
 
           {!ready ? (
             <div className="h-40" />
@@ -281,6 +285,7 @@ export default function CategoryTags() {
                               {postCountByCategory(name)} 篇
                             </span>
                           </div>
+                          {isAdmin && (
                           <div className="flex gap-1 shrink-0">
                             <Button
                               variant="ghost"
@@ -301,6 +306,7 @@ export default function CategoryTags() {
                               <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                             </Button>
                           </div>
+                          )}
                         </>
                       )}
                     </CardContent>

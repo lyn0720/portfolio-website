@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -8,34 +8,91 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { MessageCircle, PenLine } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { MessageCircle, PenLine, Trash2 } from "lucide-react"
+import { useAdmin } from "@/hooks/use-admin"
 
 type Message = {
+  id: string
   name: string
   content: string
   date: string
 }
 
 export default function ReaderComments() {
+  const { isAdmin } = useAdmin()
   const [messages, setMessages] = useState<Message[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [name, setName] = useState("")
   const [content, setContent] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Message | null>(null)
 
-  const handleSubmit = () => {
-    const trimmedName = name.trim() || "匿名访客"
+  useEffect(() => {
+    let active = true
+    fetch("/api/comments")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!active) return
+        const list = Array.isArray(d?.comments) ? d.comments : []
+        setMessages(list.slice().reverse()) // 最新的在前
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoaded(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleSubmit = async () => {
     const trimmedContent = content.trim()
-    if (!trimmedContent) return
+    if (!trimmedContent || submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), content: trimmedContent }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError((data as { error?: string }).error || "留言失败，请重试")
+        return
+      }
+      setMessages((prev) => [data.comment as Message, ...prev])
+      setName("")
+      setContent("")
+    } catch {
+      setError("网络错误，请重试")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
-    setMessages((prev) => [
-      {
-        name: trimmedName,
-        content: trimmedContent,
-        date: new Date().toISOString().slice(0, 10),
-      },
-      ...prev,
-    ])
-    setName("")
-    setContent("")
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    const target = deleteTarget
+    setDeleteTarget(null)
+    try {
+      const res = await fetch(`/api/comments/${encodeURIComponent(target.id)}`, { method: "DELETE" })
+      if (!res.ok) return
+      setMessages((prev) => prev.filter((m) => m.id !== target.id))
+    } catch {
+      // 失败时保留原留言
+    }
   }
 
   return (
@@ -94,17 +151,21 @@ export default function ReaderComments() {
                   maxLength={200}
                 />
               </div>
+              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
               <Button
                 onClick={handleSubmit}
+                disabled={submitting}
                 className="bg-jungle-600 hover:bg-jungle-700 text-white"
               >
-                提交留言
+                {submitting ? "提交中…" : "提交留言"}
               </Button>
             </CardContent>
           </Card>
         </motion.div>
 
-        {messages.length === 0 ? (
+        {!loaded ? (
+          <div className="h-10" />
+        ) : messages.length === 0 ? (
           <p className="text-center text-stone-500 dark:text-stone-400">
             还没有人留言，快来抢沙发！
           </p>
@@ -112,7 +173,7 @@ export default function ReaderComments() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {messages.map((message, index) => (
               <motion.div
-                key={`${message.date}-${index}`}
+                key={message.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
@@ -126,11 +187,24 @@ export default function ReaderComments() {
                           {message.name.slice(0, 1)}
                         </AvatarFallback>
                       </Avatar>
-                      <p className="font-medium text-stone-800 dark:text-white">{message.name}</p>
+                      <p className="font-medium text-stone-800 dark:text-white flex-1 min-w-0 truncate">
+                        {message.name}
+                      </p>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`删除 ${message.name} 的留言`}
+                          onClick={() => setDeleteTarget(message)}
+                          className="h-8 w-8 shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <p className="text-stone-600 dark:text-stone-300">{message.content}</p>
+                    <p className="text-stone-600 dark:text-stone-300 whitespace-pre-wrap">{message.content}</p>
                   </CardContent>
                   <CardFooter>
                     <span className="text-sm text-stone-600 dark:text-stone-400">{message.date}</span>
@@ -141,6 +215,34 @@ export default function ReaderComments() {
           </div>
         )}
       </div>
+
+      {/* 删除留言确认框（仅管理员可见入口） */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent className="bg-white dark:bg-jungle-900 border-stone-200 dark:border-jungle-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-stone-800 dark:text-white">确定要删除这条留言吗？</AlertDialogTitle>
+            <AlertDialogDescription className="text-stone-600 dark:text-stone-300">
+              {deleteTarget?.name} 的留言将被永久删除，此操作无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-stone-300 dark:border-jungle-600 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-jungle-800">
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

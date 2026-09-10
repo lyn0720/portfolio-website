@@ -13,11 +13,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { PenLine, Plus, Trash2, CheckCircle2, Film } from "lucide-react"
+import { PenLine, Plus, Trash2, CheckCircle2, Film, Lock, LogOut } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
+import { useAdmin } from "@/hooks/use-admin"
 import MediaPicker, { MediaImage, MediaInserter } from "@/components/media-picker"
 
 export default function WritePage() {
+  const { isAdmin, ready: adminReady, checking, login, logout } = useAdmin()
   const { categories, posts, ready, addCategory, addPost, deletePost } = useCategories()
 
   const [title, setTitle] = useState("")
@@ -27,7 +29,11 @@ export default function WritePage() {
   const [videoId, setVideoId] = useState<string | null>(null)
   const [errors, setErrors] = useState<{ title?: string; content?: string; category?: string }>({})
   const [published, setPublished] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+
+  const [password, setPassword] = useState("")
+  const [loginError, setLoginError] = useState<string | null>(null)
 
   const contentRef = useRef<HTMLTextAreaElement>(null)
 
@@ -52,8 +58,8 @@ export default function WritePage() {
   const [newCat, setNewCat] = useState("")
   const [catError, setCatError] = useState<string | null>(null)
 
-  const handleQuickCreate = () => {
-    const err = addCategory(newCat)
+  const handleQuickCreate = async () => {
+    const err = await addCategory(newCat)
     if (err) {
       setCatError(err)
       return
@@ -64,15 +70,20 @@ export default function WritePage() {
     setCatError(null)
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     const next: typeof errors = {}
     if (!title.trim()) next.title = "请输入文章标题"
     if (!content.trim()) next.content = "请输入文章内容"
     if (!category) next.category = "请选择一个分类"
     setErrors(next)
+    setPublishError(null)
     if (Object.keys(next).length > 0) return
 
-    addPost(title, content, category, coverId ?? undefined, videoId ?? undefined)
+    const err = await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined)
+    if (err) {
+      setPublishError(err)
+      return
+    }
     setPublished(true)
     setTitle("")
     setContent("")
@@ -82,15 +93,81 @@ export default function WritePage() {
     window.setTimeout(() => setPublished(false), 3000)
   }
 
+  const handleLogin = async () => {
+    if (!password) {
+      setLoginError("请输入管理密码")
+      return
+    }
+    setLoginError(null)
+    const err = await login(password)
+    if (err) setLoginError(err)
+    else setPassword("")
+  }
+
+  // ---- 登录门禁：只有管理员能看到编辑器 ----
+  if (!adminReady) {
+    return <main className="min-h-screen bg-stone-50 dark:bg-jungle-950 pt-28" />
+  }
+
+  if (!isAdmin) {
+    return (
+      <main className="min-h-screen bg-stone-50 dark:bg-jungle-950 pt-28 pb-16">
+        <div className="container mx-auto px-4 max-w-sm">
+          <Card className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-2 rounded-full bg-jungle-100 dark:bg-jungle-800/60 p-3 w-fit">
+                <Lock className="h-6 w-6 text-jungle-600 dark:text-jungle-300" />
+              </div>
+              <CardTitle className="text-stone-800 dark:text-white">管理员登录</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-stone-600 dark:text-stone-300 text-center">
+                这个页面只有博主本人能进入，先登录吧。
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setLoginError(null)
+                }}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                placeholder="输入管理密码"
+                className="w-full h-11 rounded-md border border-stone-300 dark:border-jungle-700 bg-white dark:bg-jungle-900/50 px-3 text-stone-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-jungle-500"
+              />
+              {loginError && <p className="text-sm text-red-600 dark:text-red-400">{loginError}</p>}
+              <Button
+                onClick={handleLogin}
+                disabled={checking}
+                className="w-full bg-jungle-600 hover:bg-jungle-700 text-white"
+              >
+                {checking ? "登录中…" : "登录"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-stone-50 dark:bg-jungle-950 pt-24 pb-16">
       <div className="container mx-auto px-4 max-w-3xl">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 relative">
           <h1 className="text-3xl md:text-4xl font-bold text-stone-800 dark:text-white mb-3 flex items-center justify-center gap-2">
             <PenLine className="h-7 w-7 text-jungle-500 dark:text-jungle-400" />
             发布文章
           </h1>
           <p className="text-stone-600 dark:text-stone-300">写下你想记录的，发布到你的博客。</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="absolute right-0 top-0 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-white"
+          >
+            <LogOut className="h-4 w-4 mr-1" />
+            退出登录
+          </Button>
         </div>
 
         <Card className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30 mb-10">
@@ -223,6 +300,9 @@ export default function WritePage() {
                   <CheckCircle2 className="h-4 w-4" />
                   发布成功
                 </span>
+              )}
+              {publishError && (
+                <span className="text-sm text-red-600 dark:text-red-400">{publishError}</span>
               )}
             </div>
           </CardContent>
