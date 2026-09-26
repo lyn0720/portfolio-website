@@ -105,6 +105,9 @@ export default function PostComments({ postId }: { postId: string }) {
             （{comments.length}）
           </span>
         )}
+        <span className="text-sm font-normal text-stone-500 dark:text-stone-400 ml-1">
+          和平讨论，不要吵架
+        </span>
       </h2>
 
       <Card className="border-stone-200 dark:border-jungle-800 bg-white dark:bg-jungle-900/30 mb-8">
