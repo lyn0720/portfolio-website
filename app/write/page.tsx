@@ -17,6 +17,7 @@ import { PenLine, Plus, Trash2, CheckCircle2, Film, Lock, LogOut, Pencil, X } fr
 import { useCategories } from "@/hooks/use-categories"
 import { useAdmin } from "@/hooks/use-admin"
 import MediaPicker, { MediaImage, MediaInserter } from "@/components/media-picker"
+import { formatDateTime } from "@/lib/utils"
 
 export default function WritePage() {
   const { isAdmin, ready: adminReady, checking, login, logout } = useAdmin()
@@ -421,7 +422,7 @@ export default function WritePage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-stone-800 dark:text-white truncate">{post.title}</p>
                       <p className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-2">
-                        {post.category} · {post.date}
+                        {post.category} · {formatDateTime(post.createdAt) ?? post.date}
                         {post.videoId && (
                           <span className="inline-flex items-center gap-0.5 text-jungle-600 dark:text-jungle-300">
                             <Film className="h-3.5 w-3.5" />

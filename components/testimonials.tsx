@@ -20,12 +20,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { MessageCircle, PenLine, Trash2 } from "lucide-react"
 import { useAdmin } from "@/hooks/use-admin"
+import { formatDateTime } from "@/lib/utils"
 
 type Message = {
   id: string
   name: string
   content: string
   date: string
+  createdAt?: string
 }
 
 export default function ReaderComments() {
@@ -207,7 +209,9 @@ export default function ReaderComments() {
                     <p className="text-stone-600 dark:text-stone-300 whitespace-pre-wrap">{message.content}</p>
                   </CardContent>
                   <CardFooter>
-                    <span className="text-sm text-stone-600 dark:text-stone-400">{message.date}</span>
+                    <span className="text-sm text-stone-600 dark:text-stone-400">
+                      {formatDateTime(message.createdAt) ?? message.date}
+                    </span>
                   </CardFooter>
                 </Card>
               </motion.div>

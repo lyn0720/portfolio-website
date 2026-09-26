@@ -15,7 +15,7 @@ export async function GET() {
     const sql = getSql()
     await ensureSchema()
     const rows = await sql`
-      SELECT id, title, content, category, date, cover_id, video_id
+      SELECT id, title, content, category, date, cover_id, video_id, created_at
       FROM posts
       ORDER BY created_at DESC
     `
@@ -28,6 +28,7 @@ export async function GET() {
         date: r.date,
         ...(r.cover_id ? { coverId: r.cover_id } : {}),
         ...(r.video_id ? { videoId: r.video_id } : {}),
+        ...(r.created_at ? { createdAt: new Date(r.created_at).toISOString() } : {}),
       })),
     })
   } catch (err) {

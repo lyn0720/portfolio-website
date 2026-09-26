@@ -7,6 +7,7 @@ import { ArrowLeft, Calendar, Clock, Film } from "lucide-react"
 import { useCategories, useMediaUrl } from "@/hooks/use-categories"
 import { MediaImage } from "@/components/media-picker"
 import PostComments from "@/components/post-comments"
+import { formatDateTime } from "@/lib/utils"
 
 function stripMedia(text: string) {
   return text.replace(/\[\[media:[^\]]*\]\]/g, "").trim()
@@ -92,7 +93,7 @@ export default function PostPage() {
           </Badge>
           <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
-            {post.date}
+            {formatDateTime(post.createdAt) ?? post.date}
           </span>
           <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
             <Clock className="h-3.5 w-3.5" />

@@ -18,6 +18,8 @@ export interface UserPost {
   date: string
   coverId?: string
   videoId?: string
+  /** 数据库 created_at 的 ISO 时间戳，用于展示精确到分的发布时间 */
+  createdAt?: string
 }
 
 /** 校验分类名称：非空、长度、与现有分类不重复（忽略大小写） */
@@ -239,6 +241,7 @@ export function useCategories() {
       content: content.trim(),
       category,
       date: today(),
+      createdAt: new Date().toISOString(),
       ...(coverId ? { coverId } : {}),
       ...(videoId ? { videoId } : {}),
     }

@@ -13,16 +13,24 @@ export async function GET(req: Request) {
     await ensureSchema()
     const rows = postId
       ? await sql`
-          SELECT id, name, content, date FROM comments
+          SELECT id, name, content, date, created_at FROM comments
           WHERE post_id = ${postId}
           ORDER BY created_at ASC
         `
       : await sql`
-          SELECT id, name, content, date FROM comments
+          SELECT id, name, content, date, created_at FROM comments
           WHERE post_id IS NULL
           ORDER BY created_at ASC
         `
-    return NextResponse.json({ comments: rows })
+    return NextResponse.json({
+      comments: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        content: r.content,
+        date: r.date,
+        ...(r.created_at ? { createdAt: new Date(r.created_at).toISOString() } : {}),
+      })),
+    })
   } catch (err) {
     console.error("GET /api/comments", err)
     return NextResponse.json({ comments: [], error: "数据库未配置" }, { status: 200 })
@@ -53,11 +61,23 @@ export async function POST(req: Request) {
     }
     const id = crypto.randomUUID()
     const date = new Date().toISOString().slice(0, 10)
-    await sql`
+    const inserted = await sql`
       INSERT INTO comments (id, name, content, date, post_id)
       VALUES (${id}, ${name.slice(0, 20)}, ${content}, ${date}, ${postId})
+      RETURNING created_at
     `
-    return NextResponse.json({ comment: { id, name: name.slice(0, 20), content, date, postId } })
+    return NextResponse.json({
+      comment: {
+        id,
+        name: name.slice(0, 20),
+        content,
+        date,
+        postId,
+        ...(inserted[0]?.created_at
+          ? { createdAt: new Date(inserted[0].created_at).toISOString() }
+          : {}),
+      },
+    })
   } catch (err) {
     console.error("POST /api/comments", err)
     return NextResponse.json({ error: "留言失败，请重试" }, { status: 500 })
