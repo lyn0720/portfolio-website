@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -13,14 +13,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { PenLine, Plus, Trash2, CheckCircle2, Film, Lock, LogOut } from "lucide-react"
+import { PenLine, Plus, Trash2, CheckCircle2, Film, Lock, LogOut, Pencil, X } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
 import { useAdmin } from "@/hooks/use-admin"
 import MediaPicker, { MediaImage, MediaInserter } from "@/components/media-picker"
 
 export default function WritePage() {
   const { isAdmin, ready: adminReady, checking, login, logout } = useAdmin()
-  const { categories, posts, ready, addCategory, addPost, deletePost } = useCategories()
+  const { categories, posts, ready, failed, addCategory, addPost, updatePost, deletePost } = useCategories()
 
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -31,6 +31,47 @@ export default function WritePage() {
   const [published, setPublished] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+
+  // 编辑模式：从 ?edit=<id> 进入，预填已有文章后原位修改
+  const [editId, setEditId] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const prefilledRef = useRef(false)
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("edit")
+    if (id) setEditId(id)
+  }, [])
+
+  useEffect(() => {
+    if (!editId || !ready || failed || prefilledRef.current) return
+    const post = posts.find((p) => p.id === editId)
+    if (!post) {
+      // 找不到对应文章（可能已被删除），退回新文章模式
+      setEditId(null)
+      window.history.replaceState(null, "", "/write")
+      return
+    }
+    prefilledRef.current = true
+    setTitle(post.title)
+    setContent(post.content)
+    setCategory(post.category)
+    setCoverId(post.coverId ?? null)
+    setVideoId(post.videoId ?? null)
+  }, [editId, ready, posts])
+
+  const exitEditMode = () => {
+    setEditId(null)
+    setSaved(false)
+    setTitle("")
+    setContent("")
+    setCategory("")
+    setCoverId(null)
+    setVideoId(null)
+    setErrors({})
+    setPublishError(null)
+    prefilledRef.current = false
+    window.history.replaceState(null, "", "/write")
+  }
 
   const [password, setPassword] = useState("")
   const [loginError, setLoginError] = useState<string | null>(null)
@@ -78,6 +119,23 @@ export default function WritePage() {
     setErrors(next)
     setPublishError(null)
     if (Object.keys(next).length > 0) return
+
+    if (editId) {
+      const err = await updatePost(editId, {
+        title,
+        content,
+        category,
+        coverId: coverId ?? undefined,
+        videoId: videoId ?? undefined,
+      })
+      if (err) {
+        setPublishError(err)
+        return
+      }
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 5000)
+      return
+    }
 
     const err = await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined)
     if (err) {
@@ -156,9 +214,22 @@ export default function WritePage() {
         <div className="text-center mb-10 relative">
           <h1 className="text-3xl md:text-4xl font-bold text-stone-800 dark:text-white mb-3 flex items-center justify-center gap-2">
             <PenLine className="h-7 w-7 text-jungle-500 dark:text-jungle-400" />
-            发布文章
+            {editId ? "编辑文章" : "发布文章"}
           </h1>
-          <p className="text-stone-600 dark:text-stone-300">写下你想记录的，发布到你的博客。</p>
+          <p className="text-stone-600 dark:text-stone-300">
+            {editId ? "修改这篇旧文，保存后立即生效。" : "写下你想记录的，发布到你的博客。"}
+          </p>
+          {editId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={exitEditMode}
+              className="absolute left-0 top-0 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-white"
+            >
+              <X className="h-4 w-4 mr-1" />
+              取消编辑
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -172,7 +243,9 @@ export default function WritePage() {
 
         <Card className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30 mb-10">
           <CardHeader>
-            <CardTitle className="text-stone-800 dark:text-white">新文章</CardTitle>
+            <CardTitle className="text-stone-800 dark:text-white">
+              {editId ? "编辑文章" : "新文章"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div>
@@ -288,18 +361,32 @@ export default function WritePage() {
               hint="支持 MP4 / WebM / MOV，大小不限"
             />
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <Button
                 onClick={handlePublish}
                 className="bg-jungle-600 hover:bg-jungle-700 text-white"
               >
-                发布文章
+                {editId ? "保存修改" : "发布文章"}
               </Button>
               {published && (
                 <span className="text-sm text-jungle-600 dark:text-jungle-300 flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4" />
                   发布成功
                 </span>
+              )}
+              {saved && (
+                <>
+                  <span className="text-sm text-jungle-600 dark:text-jungle-300 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    保存成功
+                  </span>
+                  <a
+                    href={`/post/${editId}`}
+                    className="text-sm text-honey-700 hover:text-honey-800 dark:text-honey-400 dark:hover:text-honey-300 underline underline-offset-2"
+                  >
+                    查看文章
+                  </a>
+                </>
               )}
               {publishError && (
                 <span className="text-sm text-red-600 dark:text-red-400">{publishError}</span>
@@ -343,6 +430,17 @@ export default function WritePage() {
                         )}
                       </p>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`编辑文章 ${post.title}`}
+                      onClick={() => {
+                        window.location.href = `/write?edit=${encodeURIComponent(post.id)}`
+                      }}
+                      className="h-8 w-8 shrink-0"
+                    >
+                      <Pencil className="h-4 w-4 text-jungle-600 dark:text-jungle-300" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

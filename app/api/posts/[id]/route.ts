@@ -1,10 +1,44 @@
-// 删除文章：需管理员
+// 文章单条操作：更新（PUT）/ 删除（DELETE），均需管理员
 import { NextResponse } from "next/server"
 import { ensureSchema, getSql } from "@/lib/db"
 import { isAdminRequest } from "@/lib/auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminRequest(req))) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 })
+  }
+  const { id } = await params
+  try {
+    const body = await req.json()
+    const { title, content, category, coverId, videoId } = body ?? {}
+    if (
+      typeof title !== "string" || !title.trim() ||
+      typeof content !== "string" || !content.trim() ||
+      typeof category !== "string" || !category
+    ) {
+      return NextResponse.json({ error: "参数不完整" }, { status: 400 })
+    }
+    const sql = getSql()
+    await ensureSchema()
+    const result = await sql`
+      UPDATE posts
+      SET title = ${title.trim()}, content = ${content.trim()}, category = ${category},
+          cover_id = ${coverId ?? null}, video_id = ${videoId ?? null}
+      WHERE id = ${id}
+      RETURNING id
+    `
+    if (result.length === 0) {
+      return NextResponse.json({ error: "文章不存在或已被删除" }, { status: 404 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("PUT /api/posts/[id]", err)
+    return NextResponse.json({ error: "保存失败，请重试" }, { status: 500 })
+  }
+}
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdminRequest(req))) {

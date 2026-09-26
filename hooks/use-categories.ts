@@ -255,6 +255,44 @@ export function useCategories() {
     }
   }
 
+  const updatePost = async (
+    id: string,
+    data: { title: string; content: string; category: string; coverId?: string; videoId?: string },
+  ): Promise<string | null> => {
+    try {
+      await fetchJson(`/api/posts/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: data.title.trim(),
+          content: data.content.trim(),
+          category: data.category,
+          ...(data.coverId ? { coverId: data.coverId } : {}),
+          ...(data.videoId ? { videoId: data.videoId } : {}),
+        }),
+      })
+      setState({
+        posts: state.posts.map((p) => {
+          if (p.id !== id) return p
+          const next: UserPost = {
+            ...p,
+            title: data.title.trim(),
+            content: data.content.trim(),
+            category: data.category,
+          }
+          if (data.coverId) next.coverId = data.coverId
+          else delete next.coverId
+          if (data.videoId) next.videoId = data.videoId
+          else delete next.videoId
+          return next
+        }),
+      })
+      return null
+    } catch (err) {
+      return errorMessage(err)
+    }
+  }
+
   const deletePost = async (id: string): Promise<void> => {
     try {
       await fetchJson(`/api/posts/${encodeURIComponent(id)}`, { method: "DELETE" })
@@ -327,6 +365,7 @@ export function useCategories() {
     deleteCategory,
     setCategoryImage,
     addPost,
+    updatePost,
     deletePost,
     postCountByCategory,
     addMedia,

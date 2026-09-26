@@ -57,8 +57,13 @@ export function ensureSchema(): Promise<void> {
           name TEXT NOT NULL,
           content TEXT NOT NULL,
           date TEXT NOT NULL,
+          post_id TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
+      `
+      // 旧表升级：文章评论挂在 post_id 上，NULL 表示全站留言板
+      await sql`
+        ALTER TABLE comments ADD COLUMN IF NOT EXISTS post_id TEXT
       `
     })().catch((err) => {
       schemaPromise = null

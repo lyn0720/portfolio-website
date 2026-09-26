@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Calendar, Clock, Film } from "lucide-react"
 import { useCategories, useMediaUrl } from "@/hooks/use-categories"
 import { MediaImage } from "@/components/media-picker"
+import PostComments from "@/components/post-comments"
 
 function stripMedia(text: string) {
   return text.replace(/\[\[media:[^\]]*\]\]/g, "").trim()
@@ -114,6 +115,8 @@ export default function PostPage() {
             <PostVideo id={post.videoId} />
           </div>
         )}
+
+        <PostComments postId={post.id} />
       </article>
     </main>
   )
