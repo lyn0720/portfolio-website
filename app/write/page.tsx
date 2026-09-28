@@ -159,10 +159,11 @@ export default function WritePage() {
         return
       }
       if (asDraft) {
-        setSavedLabel(editingDraft ? "草稿已保存" : "已存入草稿箱")
+        setSavedLabel(editingDraft ? "草稿已保存" : editId ? "已转为草稿" : "已存入草稿箱")
         setSaved(true)
         window.setTimeout(() => setSaved(false), 5000)
-        if (!editingDraft) {
+        if (!editId) {
+          // 全新存草稿才清空表单；已有文章转草稿后继续留在编辑器里
           setTitle("")
           setContent("")
           setCategory("")
@@ -432,6 +433,15 @@ export default function WritePage() {
                   className="border-jungle-600 text-jungle-700 hover:bg-jungle-50 dark:border-jungle-500 dark:text-jungle-300 dark:hover:bg-jungle-900/40"
                 >
                   存入草稿箱
+                </Button>
+              )}
+              {editId && !editingDraft && (
+                <Button
+                  variant="outline"
+                  onClick={() => handlePublish(true)}
+                  className="border-jungle-600 text-jungle-700 hover:bg-jungle-50 dark:border-jungle-500 dark:text-jungle-300 dark:hover:bg-jungle-900/40"
+                >
+                  转为草稿
                 </Button>
               )}
               {editId && editingDraft && (

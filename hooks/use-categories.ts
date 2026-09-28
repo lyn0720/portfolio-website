@@ -315,11 +315,20 @@ export function useCategories() {
           })
         }
       } else if (opts?.isDraft === true) {
-        const exists = state.drafts.some((p) => p.id === id)
+        // 转为草稿：可能来自已发布文章（需从已发布列表移除）或原有草稿
+        const base =
+          state.posts.find((p) => p.id === id) ??
+          state.drafts.find((p) => p.id === id) ?? {
+            id,
+            date: today(),
+            createdAt: new Date().toISOString(),
+          }
+        const next = apply(base)
         setState({
-          drafts: exists
-            ? state.drafts.map((p) => (p.id === id ? apply(p) : p))
-            : [apply({ id, date: today(), createdAt: new Date().toISOString() }), ...state.drafts],
+          posts: state.posts.filter((p) => p.id !== id),
+          drafts: state.drafts.some((p) => p.id === id)
+            ? state.drafts.map((p) => (p.id === id ? next : p))
+            : [next, ...state.drafts],
         })
       } else {
         setState({
