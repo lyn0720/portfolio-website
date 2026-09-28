@@ -125,15 +125,20 @@ export default function WritePage() {
     if (asDraft) {
       // 草稿允许写一半：标题/内容/分类都不强制
       setErrors({})
+      setPublishError(null)
     } else {
       const next: typeof errors = {}
       if (!title.trim()) next.title = "请输入文章标题"
       if (!content.trim()) next.content = "请输入文章内容"
       if (!category) next.category = "请选择一个分类"
       setErrors(next)
-      if (Object.keys(next).length > 0) return
+      if (Object.keys(next).length > 0) {
+        // 同时在按钮旁提示，避免只在表单字段旁显示而容易被忽略
+        setPublishError("发布前请先完善标题、内容和分类")
+        return
+      }
+      setPublishError(null)
     }
-    setPublishError(null)
 
     const payload = {
       title,
