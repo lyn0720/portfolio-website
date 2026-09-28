@@ -20,6 +20,8 @@ export interface UserPost {
   videoId?: string
   /** 数据库 created_at 的 ISO 时间戳，用于展示精确到分的发布时间 */
   createdAt?: string
+  /** true = 草稿（仅管理员可见） */
+  isDraft?: boolean
 }
 
 /** 校验分类名称：非空、长度、与现有分类不重复（忽略大小写） */
@@ -36,19 +38,23 @@ export function validateCategoryName(name: string, existing: string[]): string |
 interface StoreState {
   categories: string[]
   posts: UserPost[]
+  drafts: UserPost[]
   mediaItems: MediaItem[]
   categoryImages: Record<string, string>
   ready: boolean
   failed: boolean
+  draftsReady: boolean
 }
 
 const initialState: StoreState = {
   categories: [],
   posts: [],
+  drafts: [],
   mediaItems: [],
   categoryImages: {},
   ready: false,
   failed: false,
+  draftsReady: false,
 }
 
 let state: StoreState = initialState
@@ -234,6 +240,7 @@ export function useCategories() {
     category: string,
     coverId?: string,
     videoId?: string,
+    isDraft?: boolean,
   ): Promise<string | null> => {
     const post: UserPost = {
       id: genId(),
@@ -244,6 +251,7 @@ export function useCategories() {
       createdAt: new Date().toISOString(),
       ...(coverId ? { coverId } : {}),
       ...(videoId ? { videoId } : {}),
+      ...(isDraft ? { isDraft: true } : {}),
     }
     try {
       await fetchJson("/api/posts", {
@@ -251,7 +259,11 @@ export function useCategories() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(post),
       })
-      setState({ posts: [post, ...state.posts] })
+      setState(
+        isDraft
+          ? { drafts: [post, ...state.drafts] }
+          : { posts: [post, ...state.posts] },
+      )
       return null
     } catch (err) {
       return errorMessage(err)
@@ -261,6 +273,7 @@ export function useCategories() {
   const updatePost = async (
     id: string,
     data: { title: string; content: string; category: string; coverId?: string; videoId?: string },
+    opts?: { isDraft?: boolean },
   ): Promise<string | null> => {
     try {
       await fetchJson(`/api/posts/${encodeURIComponent(id)}`, {
@@ -272,24 +285,48 @@ export function useCategories() {
           category: data.category,
           ...(data.coverId ? { coverId: data.coverId } : {}),
           ...(data.videoId ? { videoId: data.videoId } : {}),
+          ...(opts?.isDraft !== undefined ? { isDraft: opts.isDraft } : {}),
         }),
       })
-      setState({
-        posts: state.posts.map((p) => {
-          if (p.id !== id) return p
-          const next: UserPost = {
-            ...p,
-            title: data.title.trim(),
-            content: data.content.trim(),
-            category: data.category,
-          }
-          if (data.coverId) next.coverId = data.coverId
-          else delete next.coverId
-          if (data.videoId) next.videoId = data.videoId
-          else delete next.videoId
-          return next
-        }),
-      })
+      const apply = (p: UserPost): UserPost => {
+        const next: UserPost = {
+          ...p,
+          title: data.title.trim(),
+          content: data.content.trim(),
+          category: data.category,
+        }
+        if (data.coverId) next.coverId = data.coverId
+        else delete next.coverId
+        if (data.videoId) next.videoId = data.videoId
+        else delete next.videoId
+        if (opts?.isDraft === true) next.isDraft = true
+        else if (opts?.isDraft === false) delete next.isDraft
+        return next
+      }
+      if (opts?.isDraft === false) {
+        // 草稿转正式：从草稿箱移入已发布列表
+        const target = state.drafts.find((p) => p.id === id) ?? state.posts.find((p) => p.id === id)
+        if (target) {
+          const published = apply({ ...target, isDraft: undefined })
+          delete published.isDraft
+          setState({
+            posts: [published, ...state.posts.filter((p) => p.id !== id)],
+            drafts: state.drafts.filter((p) => p.id !== id),
+          })
+        }
+      } else if (opts?.isDraft === true) {
+        const exists = state.drafts.some((p) => p.id === id)
+        setState({
+          drafts: exists
+            ? state.drafts.map((p) => (p.id === id ? apply(p) : p))
+            : [apply({ id, date: today(), createdAt: new Date().toISOString() }), ...state.drafts],
+        })
+      } else {
+        setState({
+          posts: state.posts.map((p) => (p.id === id ? apply(p) : p)),
+          drafts: state.drafts.map((p) => (p.id === id ? apply(p) : p)),
+        })
+      }
       return null
     } catch (err) {
       return errorMessage(err)
@@ -299,9 +336,24 @@ export function useCategories() {
   const deletePost = async (id: string): Promise<void> => {
     try {
       await fetchJson(`/api/posts/${encodeURIComponent(id)}`, { method: "DELETE" })
-      setState({ posts: state.posts.filter((p) => p.id !== id) })
+      setState({
+        posts: state.posts.filter((p) => p.id !== id),
+        drafts: state.drafts.filter((p) => p.id !== id),
+      })
     } catch (err) {
       console.error("删除文章失败", err)
+    }
+  }
+
+  /** 加载草稿箱（仅管理员，写页面调用一次） */
+  const loadDrafts = async (): Promise<void> => {
+    if (state.draftsReady) return
+    try {
+      const data = await fetchJson<{ posts: UserPost[] }>("/api/posts?drafts=1")
+      setState({ drafts: data.posts ?? [], draftsReady: true })
+    } catch (err) {
+      console.error("草稿箱加载失败", err)
+      setState({ draftsReady: true })
     }
   }
 
@@ -370,6 +422,7 @@ export function useCategories() {
     addPost,
     updatePost,
     deletePost,
+    loadDrafts,
     postCountByCategory,
     addMedia,
     removeMediaItem,

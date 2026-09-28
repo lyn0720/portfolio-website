@@ -61,6 +61,10 @@ export function ensureSchema(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // 旧表升级：草稿箱标记（true = 仅管理员可见的草稿）
+      await sql`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_draft BOOLEAN NOT NULL DEFAULT false
+      `
       // 旧表升级：文章评论挂在 post_id 上，NULL 表示全站留言板
       await sql`
         ALTER TABLE comments ADD COLUMN IF NOT EXISTS post_id TEXT

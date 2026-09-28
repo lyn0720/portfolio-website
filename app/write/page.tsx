@@ -21,7 +21,7 @@ import { formatDateTime } from "@/lib/utils"
 
 export default function WritePage() {
   const { isAdmin, ready: adminReady, checking, login, logout } = useAdmin()
-  const { categories, posts, ready, failed, addCategory, addPost, updatePost, deletePost } = useCategories()
+  const { categories, posts, drafts, draftsReady, ready, failed, addCategory, addPost, updatePost, deletePost, loadDrafts } = useCategories()
 
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -36,6 +36,7 @@ export default function WritePage() {
   // 编辑模式：从 ?edit=<id> 进入，预填已有文章后原位修改
   const [editId, setEditId] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [savedLabel, setSavedLabel] = useState("保存成功")
   const prefilledRef = useRef(false)
 
   useEffect(() => {
@@ -43,10 +44,18 @@ export default function WritePage() {
     if (id) setEditId(id)
   }, [])
 
+  // 登录后加载草稿箱
+  useEffect(() => {
+    if (isAdmin) loadDrafts()
+  }, [isAdmin])
+
+  const editingDraft = !!editId && drafts.some((d) => d.id === editId)
+
   useEffect(() => {
     if (!editId || !ready || failed || prefilledRef.current) return
-    const post = posts.find((p) => p.id === editId)
+    const post = posts.find((p) => p.id === editId) ?? drafts.find((p) => p.id === editId)
     if (!post) {
+      if (!draftsReady) return // 草稿箱还没加载完，再等等
       // 找不到对应文章（可能已被删除），退回新文章模式
       setEditId(null)
       window.history.replaceState(null, "", "/write")
@@ -58,7 +67,7 @@ export default function WritePage() {
     setCategory(post.category)
     setCoverId(post.coverId ?? null)
     setVideoId(post.videoId ?? null)
-  }, [editId, ready, posts])
+  }, [editId, ready, failed, posts, drafts, draftsReady])
 
   const exitEditMode = () => {
     setEditId(null)
@@ -112,44 +121,82 @@ export default function WritePage() {
     setCatError(null)
   }
 
-  const handlePublish = async () => {
-    const next: typeof errors = {}
-    if (!title.trim()) next.title = "请输入文章标题"
-    if (!content.trim()) next.content = "请输入文章内容"
-    if (!category) next.category = "请选择一个分类"
-    setErrors(next)
+  const handlePublish = async (asDraft: boolean) => {
+    if (asDraft) {
+      // 草稿允许写一半：标题/内容/分类都不强制
+      setErrors({})
+    } else {
+      const next: typeof errors = {}
+      if (!title.trim()) next.title = "请输入文章标题"
+      if (!content.trim()) next.content = "请输入文章内容"
+      if (!category) next.category = "请选择一个分类"
+      setErrors(next)
+      if (Object.keys(next).length > 0) return
+    }
     setPublishError(null)
-    if (Object.keys(next).length > 0) return
+
+    const payload = {
+      title,
+      content,
+      category,
+      coverId: coverId ?? undefined,
+      videoId: videoId ?? undefined,
+    }
 
     if (editId) {
-      const err = await updatePost(editId, {
-        title,
-        content,
-        category,
-        coverId: coverId ?? undefined,
-        videoId: videoId ?? undefined,
-      })
+      const err = await updatePost(
+        editId,
+        payload,
+        asDraft ? { isDraft: true } : editingDraft ? { isDraft: false } : undefined,
+      )
       if (err) {
         setPublishError(err)
         return
       }
+      if (asDraft) {
+        setSavedLabel(editingDraft ? "草稿已保存" : "已存入草稿箱")
+        setSaved(true)
+        window.setTimeout(() => setSaved(false), 5000)
+        if (!editingDraft) {
+          setTitle("")
+          setContent("")
+          setCategory("")
+          setCoverId(null)
+          setVideoId(null)
+        }
+        return
+      }
+      if (editingDraft) {
+        // 草稿发布成功：退出编辑模式回到新文章状态
+        exitEditMode()
+        setPublished(true)
+        window.setTimeout(() => setPublished(false), 3000)
+        return
+      }
+      setSavedLabel("保存成功")
       setSaved(true)
       window.setTimeout(() => setSaved(false), 5000)
       return
     }
 
-    const err = await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined)
+    const err = await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, asDraft)
     if (err) {
       setPublishError(err)
       return
     }
-    setPublished(true)
+    if (asDraft) {
+      setSavedLabel("已存入草稿箱")
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 5000)
+    } else {
+      setPublished(true)
+      window.setTimeout(() => setPublished(false), 3000)
+    }
     setTitle("")
     setContent("")
     setCategory("")
     setCoverId(null)
     setVideoId(null)
-    window.setTimeout(() => setPublished(false), 3000)
   }
 
   const handleLogin = async () => {
@@ -215,10 +262,14 @@ export default function WritePage() {
         <div className="text-center mb-10 relative">
           <h1 className="text-3xl md:text-4xl font-bold text-stone-800 dark:text-white mb-3 flex items-center justify-center gap-2">
             <PenLine className="h-7 w-7 text-jungle-500 dark:text-jungle-400" />
-            {editId ? "编辑文章" : "发布文章"}
+            {editId ? (editingDraft ? "编辑草稿" : "编辑文章") : "发布文章"}
           </h1>
           <p className="text-stone-600 dark:text-stone-300">
-            {editId ? "修改这篇旧文，保存后立即生效。" : "写下你想记录的，发布到你的博客。"}
+            {editId
+              ? editingDraft
+                ? "继续写完这篇草稿，写好后随时发布。"
+                : "修改这篇旧文，保存后立即生效。"
+              : "写下你想记录的，发布到你的博客。"}
           </p>
           {editId && (
             <Button
@@ -245,7 +296,7 @@ export default function WritePage() {
         <Card className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30 mb-10">
           <CardHeader>
             <CardTitle className="text-stone-800 dark:text-white">
-              {editId ? "编辑文章" : "新文章"}
+              {editId ? (editingDraft ? "编辑草稿" : "编辑文章") : "新文章"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -364,11 +415,29 @@ export default function WritePage() {
 
             <div className="flex items-center gap-4 flex-wrap">
               <Button
-                onClick={handlePublish}
+                onClick={() => handlePublish(false)}
                 className="bg-jungle-600 hover:bg-jungle-700 text-white"
               >
-                {editId ? "保存修改" : "发布文章"}
+                {editId ? (editingDraft ? "发布" : "保存修改") : "发布文章"}
               </Button>
+              {!editId && (
+                <Button
+                  variant="outline"
+                  onClick={() => handlePublish(true)}
+                  className="border-jungle-600 text-jungle-700 hover:bg-jungle-50 dark:border-jungle-500 dark:text-jungle-300 dark:hover:bg-jungle-900/40"
+                >
+                  存入草稿箱
+                </Button>
+              )}
+              {editId && editingDraft && (
+                <Button
+                  variant="outline"
+                  onClick={() => handlePublish(true)}
+                  className="border-jungle-600 text-jungle-700 hover:bg-jungle-50 dark:border-jungle-500 dark:text-jungle-300 dark:hover:bg-jungle-900/40"
+                >
+                  保存草稿
+                </Button>
+              )}
               {published && (
                 <span className="text-sm text-jungle-600 dark:text-jungle-300 flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4" />
@@ -379,14 +448,16 @@ export default function WritePage() {
                 <>
                   <span className="text-sm text-jungle-600 dark:text-jungle-300 flex items-center gap-1">
                     <CheckCircle2 className="h-4 w-4" />
-                    保存成功
+                    {savedLabel}
                   </span>
-                  <a
-                    href={`/post/${editId}`}
-                    className="text-sm text-honey-700 hover:text-honey-800 dark:text-honey-400 dark:hover:text-honey-300 underline underline-offset-2"
-                  >
-                    查看文章
-                  </a>
+                  {editId && !editingDraft && (
+                    <a
+                      href={`/post/${editId}`}
+                      className="text-sm text-honey-700 hover:text-honey-800 dark:text-honey-400 dark:hover:text-honey-300 underline underline-offset-2"
+                    >
+                      查看文章
+                    </a>
+                  )}
                 </>
               )}
               {publishError && (
@@ -447,6 +518,69 @@ export default function WritePage() {
                       size="icon"
                       aria-label={`删除文章 ${post.title}`}
                       onClick={() => setDeleteTarget({ id: post.id, title: post.title })}
+                      className="h-8 w-8 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 草稿箱（仅管理员可见，访客端列表/详情页自动排除草稿） */}
+        <div className="mt-10">
+          <h2 className="text-xl font-bold text-stone-800 dark:text-white mb-4">
+            草稿箱{draftsReady && drafts.length > 0 ? `（${drafts.length}）` : ""}
+          </h2>
+          {!draftsReady ? (
+            <div className="h-12" />
+          ) : drafts.length === 0 ? (
+            <div className="border-2 border-dashed border-stone-300 dark:border-jungle-700 rounded-lg py-8 text-center">
+              <p className="text-stone-600 dark:text-stone-300">
+                草稿箱是空的，写一半的文章可以点「存入草稿箱」存在这里。
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {drafts.map((post) => (
+                <Card
+                  key={post.id}
+                  className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30"
+                >
+                  <CardContent className="p-4 flex items-center gap-3">
+                    {post.coverId && (
+                      <MediaImage
+                        id={post.coverId}
+                        alt={post.title || "未命名草稿"}
+                        className="h-12 w-16 rounded object-cover shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-stone-800 dark:text-white truncate">
+                        {post.title || "未命名草稿"}
+                      </p>
+                      <p className="text-sm text-stone-600 dark:text-stone-400">
+                        草稿 · 保存于 {formatDateTime(post.createdAt) ?? post.date}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`编辑草稿 ${post.title || "未命名草稿"}`}
+                      onClick={() => {
+                        window.location.href = `/write?edit=${encodeURIComponent(post.id)}`
+                      }}
+                      className="h-8 w-8 shrink-0"
+                    >
+                      <Pencil className="h-4 w-4 text-jungle-600 dark:text-jungle-300" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`删除草稿 ${post.title || "未命名草稿"}`}
+                      onClick={() => setDeleteTarget({ id: post.id, title: post.title || "未命名草稿" })}
                       className="h-8 w-8 shrink-0"
                     >
                       <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
