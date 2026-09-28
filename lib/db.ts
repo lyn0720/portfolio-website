@@ -69,6 +69,10 @@ export function ensureSchema(): Promise<void> {
       await sql`
         ALTER TABLE comments ADD COLUMN IF NOT EXISTS post_id TEXT
       `
+      // 旧表升级：暂存草稿的来源文章 id（编辑已发布文章时暂存的修改副本）
+      await sql`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS source_id TEXT
+      `
     })().catch((err) => {
       schemaPromise = null
       throw err

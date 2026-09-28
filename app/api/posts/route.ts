@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     await ensureSchema()
     const rows = wantDrafts
       ? await sql`
-          SELECT id, title, content, category, date, cover_id, video_id, created_at, is_draft
+          SELECT id, title, content, category, date, cover_id, video_id, created_at, is_draft, source_id
           FROM posts
           WHERE is_draft = true
           ORDER BY created_at DESC
@@ -43,6 +43,7 @@ export async function GET(req: Request) {
         ...(r.video_id ? { videoId: r.video_id } : {}),
         ...(r.created_at ? { createdAt: new Date(r.created_at).toISOString() } : {}),
         ...(r.is_draft ? { isDraft: true } : {}),
+        ...(r.source_id ? { sourceId: r.source_id } : {}),
       })),
     })
   } catch (err) {
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json()
-    const { id, title, content, category, date, coverId, videoId, isDraft } = body ?? {}
+    const { id, title, content, category, date, coverId, videoId, isDraft, sourceId } = body ?? {}
     const draft = isDraft === true
     // 草稿允许标题/内容/分类为空，正式发布必须完整
     if (
@@ -73,8 +74,8 @@ export async function POST(req: Request) {
     const sql = getSql()
     await ensureSchema()
     await sql`
-      INSERT INTO posts (id, title, content, category, date, cover_id, video_id, is_draft)
-      VALUES (${id}, ${title.trim()}, ${content.trim()}, ${category}, ${date}, ${coverId ?? null}, ${videoId ?? null}, ${draft})
+      INSERT INTO posts (id, title, content, category, date, cover_id, video_id, is_draft, source_id)
+      VALUES (${id}, ${title.trim()}, ${content.trim()}, ${category}, ${date}, ${coverId ?? null}, ${videoId ?? null}, ${draft}, ${typeof sourceId === "string" && sourceId ? sourceId : null})
       ON CONFLICT (id) DO NOTHING
     `
     return NextResponse.json({ ok: true })

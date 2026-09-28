@@ -22,6 +22,8 @@ export interface UserPost {
   createdAt?: string
   /** true = 草稿（仅管理员可见） */
   isDraft?: boolean
+  /** 来源文章 id：编辑已发布文章时暂存到草稿箱的修改副本 */
+  sourceId?: string
 }
 
 /** 校验分类名称：非空、长度、与现有分类不重复（忽略大小写） */
@@ -241,6 +243,7 @@ export function useCategories() {
     coverId?: string,
     videoId?: string,
     isDraft?: boolean,
+    sourceId?: string,
   ): Promise<string | null> => {
     const post: UserPost = {
       id: genId(),
@@ -252,6 +255,7 @@ export function useCategories() {
       ...(coverId ? { coverId } : {}),
       ...(videoId ? { videoId } : {}),
       ...(isDraft ? { isDraft: true } : {}),
+      ...(isDraft && sourceId ? { sourceId } : {}),
     }
     try {
       await fetchJson("/api/posts", {
@@ -314,23 +318,8 @@ export function useCategories() {
             drafts: state.drafts.filter((p) => p.id !== id),
           })
         }
-      } else if (opts?.isDraft === true) {
-        // 转为草稿：可能来自已发布文章（需从已发布列表移除）或原有草稿
-        const base =
-          state.posts.find((p) => p.id === id) ??
-          state.drafts.find((p) => p.id === id) ?? {
-            id,
-            date: today(),
-            createdAt: new Date().toISOString(),
-          }
-        const next = apply(base)
-        setState({
-          posts: state.posts.filter((p) => p.id !== id),
-          drafts: state.drafts.some((p) => p.id === id)
-            ? state.drafts.map((p) => (p.id === id ? next : p))
-            : [next, ...state.drafts],
-        })
       } else {
+        // 普通更新（isDraft=true 仅用于让 API 跳过草稿的完整性校验，不改变所在列表）
         setState({
           posts: state.posts.map((p) => (p.id === id ? apply(p) : p)),
           drafts: state.drafts.map((p) => (p.id === id ? apply(p) : p)),

@@ -149,6 +149,37 @@ export default function WritePage() {
     }
 
     if (editId) {
+      // 编辑已发布文章时点「暂存到草稿箱」：把当前修改存一份副本进草稿箱，原文保持不动
+      if (asDraft && !editingDraft) {
+        const stash = drafts.find((d) => d.sourceId === editId)
+        const err = stash
+          ? await updatePost(stash.id, payload, { isDraft: true })
+          : await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, true, editId)
+        if (err) {
+          setPublishError(err)
+          return
+        }
+        setSavedLabel("已暂存到草稿箱")
+        setSaved(true)
+        window.setTimeout(() => setSaved(false), 5000)
+        return
+      }
+
+      // 编辑暂存草稿时点「发布」：把修改覆盖回来源文章，并删掉这份暂存
+      const editingStash = editingDraft ? drafts.find((d) => d.id === editId) : undefined
+      if (!asDraft && editingStash?.sourceId && posts.some((p) => p.id === editingStash.sourceId)) {
+        const err = await updatePost(editingStash.sourceId, payload)
+        if (err) {
+          setPublishError(err)
+          return
+        }
+        await deletePost(editId)
+        exitEditMode()
+        setPublished(true)
+        window.setTimeout(() => setPublished(false), 3000)
+        return
+      }
+
       const err = await updatePost(
         editId,
         payload,
@@ -159,17 +190,10 @@ export default function WritePage() {
         return
       }
       if (asDraft) {
-        setSavedLabel(editingDraft ? "草稿已保存" : editId ? "已转为草稿" : "已存入草稿箱")
+        // 编辑草稿时保存草稿，继续留在编辑器里
+        setSavedLabel("草稿已保存")
         setSaved(true)
         window.setTimeout(() => setSaved(false), 5000)
-        if (!editId) {
-          // 全新存草稿才清空表单；已有文章转草稿后继续留在编辑器里
-          setTitle("")
-          setContent("")
-          setCategory("")
-          setCoverId(null)
-          setVideoId(null)
-        }
         return
       }
       if (editingDraft) {
@@ -441,7 +465,7 @@ export default function WritePage() {
                   onClick={() => handlePublish(true)}
                   className="border-jungle-600 text-jungle-700 hover:bg-jungle-50 dark:border-jungle-500 dark:text-jungle-300 dark:hover:bg-jungle-900/40"
                 >
-                  转为草稿
+                  暂存到草稿箱
                 </Button>
               )}
               {editId && editingDraft && (
@@ -559,7 +583,11 @@ export default function WritePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {drafts.map((post) => (
+              {drafts.map((post) => {
+                const sourceTitle = post.sourceId
+                  ? posts.find((p) => p.id === post.sourceId)?.title
+                  : undefined
+                return (
                 <Card
                   key={post.id}
                   className="border-stone-200 dark:border-jungle-800 dark:bg-jungle-900/30"
@@ -577,7 +605,9 @@ export default function WritePage() {
                         {post.title || "未命名草稿"}
                       </p>
                       <p className="text-sm text-stone-600 dark:text-stone-400">
-                        草稿 · 保存于 {formatDateTime(post.createdAt) ?? post.date}
+                        {post.sourceId
+                          ? `暂存修改${sourceTitle ? ` · 来自《${sourceTitle}》` : ""} · 保存于 ${formatDateTime(post.createdAt) ?? post.date}`
+                          : `草稿 · 保存于 ${formatDateTime(post.createdAt) ?? post.date}`}
                       </p>
                     </div>
                     <Button
@@ -602,7 +632,8 @@ export default function WritePage() {
                     </Button>
                   </CardContent>
                 </Card>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
