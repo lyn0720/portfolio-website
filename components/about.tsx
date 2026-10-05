@@ -8,11 +8,13 @@ import { BookOpen, Calendar, Clock, ArrowRight, Flame, PenLine } from "lucide-re
 import { useCategories, useMediaUrl } from "@/hooks/use-categories"
 
 export default function LatestArticles() {
-  const { posts, ready } = useCategories()
+  const { posts, ready, mediaItems } = useCategories()
 
   const featured = posts[0]
   const coverUrl = useMediaUrl(featured?.coverId)
   const articles = posts.slice(1, 6)
+  // 媒体 id → 云端 URL，供列表卡片解析封面图
+  const mediaUrlMap = new Map(mediaItems.map((m) => [m.id, m.url]))
 
   const stripMedia = (text: string) => text.replace(/\[\[media:[^\]]*\]\]/g, "").trim()
   const readTime = (text: string) => `${Math.max(1, Math.ceil(stripMedia(text).length / 500))} 分钟`
@@ -128,30 +130,39 @@ export default function LatestArticles() {
               <Card
                 key={article.id}
                 onClick={() => (window.location.href = `/post/${article.id}`)}
-                className="border-stone-200 dark:border-jungle-800 hover:shadow-md hover:border-jungle-300 dark:hover:border-jungle-600 transition-all duration-300 dark:bg-jungle-900/30 cursor-pointer"
+                className="group overflow-hidden border-stone-200 dark:border-jungle-800 hover:shadow-md hover:border-jungle-300 dark:hover:border-jungle-600 transition-all duration-300 dark:bg-jungle-900/30 cursor-pointer"
               >
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge
-                      variant="secondary"
-                      className="bg-honey-100 dark:bg-honey-900/50 text-honey-800 dark:text-honey-200"
-                    >
-                      {article.category}
-                    </Badge>
-                    <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {article.date}
-                    </span>
-                    <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      {readTime(article.content)}
-                    </span>
+                <div className="flex h-full">
+                  <div className="relative w-28 sm:w-36 md:w-44 shrink-0 overflow-hidden">
+                    <img
+                      src={mediaUrlMap.get(article.coverId ?? "") ?? "/images/django-jungle.png"}
+                      alt={article.title}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
                   </div>
-                  <h3 className="text-lg font-semibold text-stone-800 dark:text-white mb-1 group-hover:text-jungle-600">
-                    {article.title}
-                  </h3>
-                  <p className="text-stone-600 dark:text-stone-300">{excerpt(article.content)}</p>
-                </CardContent>
+                  <CardContent className="p-5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <Badge
+                        variant="secondary"
+                        className="bg-honey-100 dark:bg-honey-900/50 text-honey-800 dark:text-honey-200"
+                      >
+                        {article.category}
+                      </Badge>
+                      <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {article.date}
+                      </span>
+                      <span className="text-sm text-stone-600 dark:text-stone-400 flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {readTime(article.content)}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-stone-800 dark:text-white mb-1 group-hover:text-jungle-600 dark:group-hover:text-jungle-300 line-clamp-1">
+                      {article.title}
+                    </h3>
+                    <p className="text-stone-600 dark:text-stone-300 line-clamp-2">{excerpt(article.content)}</p>
+                  </CardContent>
+                </div>
               </Card>
             ))}
 
