@@ -21,7 +21,7 @@ import { formatDateTime } from "@/lib/utils"
 
 export default function WritePage() {
   const { isAdmin, ready: adminReady, checking, login, logout } = useAdmin()
-  const { categories, posts, drafts, draftsReady, ready, failed, addCategory, addPost, updatePost, deletePost, loadDrafts } = useCategories()
+  const { categories, posts, drafts, draftsReady, draftsError, ready, failed, addCategory, addPost, updatePost, deletePost, loadDrafts } = useCategories()
 
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -32,6 +32,13 @@ export default function WritePage() {
   const [published, setPublished] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+  const [refreshingDrafts, setRefreshingDrafts] = useState(false)
+
+  const refreshDrafts = async () => {
+    setRefreshingDrafts(true)
+    await loadDrafts(true)
+    setRefreshingDrafts(false)
+  }
 
   // 编辑模式：从 ?edit=<id> 进入，预填已有文章后原位修改
   const [editId, setEditId] = useState<string | null>(null)
@@ -44,9 +51,22 @@ export default function WritePage() {
     if (id) setEditId(id)
   }, [])
 
-  // 登录后加载草稿箱
+  // 登录后加载草稿箱；每次进入页面、切回标签页或从后台恢复时都强制重新拉取，
+  // 这样电脑上存的草稿，用手机打开就能看到（反之亦然）
   useEffect(() => {
-    if (isAdmin) loadDrafts()
+    if (!isAdmin) return
+    loadDrafts(true)
+    const sync = () => {
+      if (document.visibilityState === "visible") loadDrafts(true)
+    }
+    document.addEventListener("visibilitychange", sync)
+    window.addEventListener("focus", sync)
+    window.addEventListener("pageshow", sync)
+    return () => {
+      document.removeEventListener("visibilitychange", sync)
+      window.removeEventListener("focus", sync)
+      window.removeEventListener("pageshow", sync)
+    }
   }, [isAdmin])
 
   const editingDraft = !!editId && drafts.some((d) => d.id === editId)
@@ -154,7 +174,9 @@ export default function WritePage() {
         const stash = drafts.find((d) => d.sourceId === editId)
         const err = stash
           ? await updatePost(stash.id, payload, { isDraft: true })
-          : await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, true, editId)
+          : (
+              await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, true, editId)
+            ).error
         if (err) {
           setPublishError(err)
           return
@@ -162,6 +184,7 @@ export default function WritePage() {
         setSavedLabel("已暂存到草稿箱")
         setSaved(true)
         window.setTimeout(() => setSaved(false), 5000)
+        void loadDrafts(true)
         return
       }
 
@@ -209,7 +232,7 @@ export default function WritePage() {
       return
     }
 
-    const err = await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, asDraft)
+    const err = (await addPost(title, content, category, coverId ?? undefined, videoId ?? undefined, asDraft)).error
     if (err) {
       setPublishError(err)
       return
@@ -218,6 +241,8 @@ export default function WritePage() {
       setSavedLabel("已存入草稿箱")
       setSaved(true)
       window.setTimeout(() => setSaved(false), 5000)
+      // 存完再从服务器拉一遍，确认真的写进了云端（而不是只存在当前这台设备上）
+      void loadDrafts(true)
     } else {
       setPublished(true)
       window.setTimeout(() => setPublished(false), 3000)
@@ -570,15 +595,29 @@ export default function WritePage() {
 
         {/* 草稿箱（仅管理员可见，访客端列表/详情页自动排除草稿） */}
         <div className="mt-10">
-          <h2 className="text-xl font-bold text-stone-800 dark:text-white mb-4">
-            草稿箱{draftsReady && drafts.length > 0 ? `（${drafts.length}）` : ""}
-          </h2>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold text-stone-800 dark:text-white">
+              草稿箱{draftsReady && drafts.length > 0 ? `（${drafts.length}）` : ""}
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={refreshDrafts}
+              disabled={refreshingDrafts}
+              className="text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-white shrink-0"
+            >
+              {refreshingDrafts ? "同步中…" : "刷新"}
+            </Button>
+          </div>
+          {draftsError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">草稿箱加载失败：{draftsError}</p>
+          )}
           {!draftsReady ? (
             <div className="h-12" />
           ) : drafts.length === 0 ? (
             <div className="border-2 border-dashed border-stone-300 dark:border-jungle-700 rounded-lg py-8 text-center">
               <p className="text-stone-600 dark:text-stone-300">
-                草稿箱是空的，写一半的文章可以点「存入草稿箱」存在这里。
+                草稿箱是空的，写一半的文章可以点「存入草稿箱」存在这里。电脑和手机登录同一个管理密码后看到的是同一份草稿。
               </p>
             </div>
           ) : (

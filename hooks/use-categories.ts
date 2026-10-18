@@ -46,6 +46,8 @@ interface StoreState {
   ready: boolean
   failed: boolean
   draftsReady: boolean
+  /** 草稿箱最近一次拉取失败的原因（如登录过期），null 表示正常 */
+  draftsError: string | null
 }
 
 const initialState: StoreState = {
@@ -57,6 +59,7 @@ const initialState: StoreState = {
   ready: false,
   failed: false,
   draftsReady: false,
+  draftsError: null,
 }
 
 let state: StoreState = initialState
@@ -244,9 +247,10 @@ export function useCategories() {
     videoId?: string,
     isDraft?: boolean,
     sourceId?: string,
-  ): Promise<string | null> => {
+    explicitId?: string,
+  ): Promise<{ error: string | null; id?: string }> => {
     const post: UserPost = {
-      id: genId(),
+      id: explicitId || genId(),
       title: title.trim(),
       content: content.trim(),
       category,
@@ -268,9 +272,9 @@ export function useCategories() {
           ? { drafts: [post, ...state.drafts] }
           : { posts: [post, ...state.posts] },
       )
-      return null
+      return { error: null, id: post.id }
     } catch (err) {
-      return errorMessage(err)
+      return { error: errorMessage(err) }
     }
   }
 
@@ -343,15 +347,16 @@ export function useCategories() {
     }
   }
 
-  /** 加载草稿箱（仅管理员，写页面调用一次） */
-  const loadDrafts = async (): Promise<void> => {
-    if (state.draftsReady) return
+  /** 加载草稿箱（仅管理员）；force=true 时强制重新拉取，保证换设备/切回页面后拿到最新草稿 */
+  const loadDrafts = async (force = false): Promise<void> => {
+    if (!force && state.draftsReady) return
     try {
-      const data = await fetchJson<{ posts: UserPost[] }>("/api/posts?drafts=1")
-      setState({ drafts: data.posts ?? [], draftsReady: true })
+      // 加时间戳，避免浏览器/中间层返回旧缓存
+      const data = await fetchJson<{ posts: UserPost[] }>(`/api/posts?drafts=1&_=${Date.now()}`)
+      setState({ drafts: data.posts ?? [], draftsReady: true, draftsError: null })
     } catch (err) {
       console.error("草稿箱加载失败", err)
-      setState({ draftsReady: true })
+      setState({ draftsReady: true, draftsError: errorMessage(err) })
     }
   }
 
